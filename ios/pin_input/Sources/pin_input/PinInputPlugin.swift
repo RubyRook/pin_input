@@ -5,10 +5,14 @@ let channelName: String = "pin_input_field"
 let weight: [Int:UIFont.Weight] =
   [300: .light, 400: .regular, 500: .medium, 600: .semibold, 700: .bold]
 
+var onTabbed: Bool = false
+
 protocol CustomTextFieldDelegate: AnyObject {
   func clearTag()
 
-  func textFieldDidPressBackspace(_ textField: CustomTextField)
+  func textFieldDidPressBackspace(_ textField: CustomTextField, _ oldValue: String)
+
+  func unfocus(_ textField: CustomTextField)
 
   func textField(
     _ textField: CustomTextField,
@@ -38,21 +42,21 @@ class CustomTextField: UITextField, UITextFieldDelegate {
     setupView()
   }
 
-  // Hides the selection rectangles. [1]
+  // Hides the selection rectangles.
   override func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
     return []
   }
 
-  // Prevents the editing menu (cut, copy) from appearing.
+  // Prevents the editing menu (cut, copy, paste) from appearing.
   override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
-    if action == #selector(UIResponderStandardEditActions.paste(_:)) {
-      return true // Allow paste
-    }
+    // if action == #selector(UIResponderStandardEditActions.paste(_:)) {
+    //   return true // Allow paste
+    // }
     return false
   }
 
   override func deleteBackward() {
-    let text:  String = self.text ?? ""
+    let text: String = self.text ?? ""
     var cursorPosition: Int = 0
 
     if let selectedRange = self.selectedTextRange {
@@ -61,15 +65,24 @@ class CustomTextField: UITextField, UITextFieldDelegate {
 
     super.deleteBackward()
 
-    if cursorPosition == 0 && !text.isEmpty {
-      self.text = ""
+    if cursorPosition == 0 {
+      if text.isEmpty {
+        customTextFieldDelegate?.textFieldDidPressBackspace(self, text)
+        onTabbed = false
+      }
+      else {
+        self.text = ""
+        onTabbed = false
+      }
     }
-    else if text.isEmpty {
-      customTextFieldDelegate?.textFieldDidPressBackspace(self)
+    else if !onTabbed {
+      customTextFieldDelegate?.textFieldDidPressBackspace(self, text)
     }
-    else {
-      self.becomeFirstResponder()
-    }
+  }
+
+  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+    super.touchesBegan(touches, with: event)
+    onTabbed = true
   }
 
   private func setupView() {
@@ -111,9 +124,10 @@ class CustomTextField: UITextField, UITextFieldDelegate {
 
     let result = super.resignFirstResponder()
     if result {
-      layer.borderColor = defaultBorderColor.cgColor
+      customTextFieldDelegate?.unfocus(self)
       layer.borderWidth = 1.0
-      cursorView.isHidden = true // Hide the cursor
+
+      cursorView.isHidden = true
       cursorView.layer.removeAllAnimations()
     }
     return result
@@ -160,11 +174,12 @@ class PinInputView: NSObject, FlutterPlatformView, CustomTextFieldDelegate {
     didSet {
       // Update UI or trigger action when PIN is complete
       if enteredPin.count == pinLength {
-        print("PIN entered: \(enteredPin)")
         methodChannel.invokeMethod("pinResult", arguments: enteredPin)
       }
     }
   }
+
+  private var isError: Bool = false
 
   init(frame: CGRect, viewId: Int64, args: Any?, messenger: FlutterBinaryMessenger) {
     self.frame = frame
@@ -243,7 +258,6 @@ class PinInputView: NSObject, FlutterPlatformView, CustomTextFieldDelegate {
       textField.textAlignment = .center
       textField.tintColor = .clear
       textField.keyboardType = .numberPad
-      // textField.textContentType = .oneTimeCode
       textField.borderStyle = .roundedRect
       textField.tag = i // Use tag to identify text fields
       textField.addTarget(self, action: #selector(textFieldDidChange(_:)), for: .editingChanged)
@@ -279,6 +293,14 @@ class PinInputView: NSObject, FlutterPlatformView, CustomTextFieldDelegate {
             self?.invalidArgument("Error message not provided or not a String", result)
           }
 
+        case "didChangePlatformBrightness":
+          if let args = call.arguments as? [String: Any] {
+            self?.didChangePlatformBrightness(args)
+            result(nil)
+          } else {
+            self?.invalidArgument("Error arguments not provided or not a [String: Any]", result)
+          }
+
         case "clearErrorState":
           self?.clearErrorState()
 
@@ -303,20 +325,54 @@ class PinInputView: NSObject, FlutterPlatformView, CustomTextFieldDelegate {
   }
 
   private func onErrorState(message: String) {
+    isError = true
+
     // Update border color for all text fields
     for textField in pinTextFields {
-      textField.layer.borderColor = UIColor.red.cgColor
+      textField.layer.borderColor = textField.invalidColor.cgColor
       textField.textColor = textField.invalidColor
     }
   }
 
   private func clearErrorState() {
-    // Restore the default border color for all non-focused fields
-    for (index, textField) in pinTextFields.enumerated() {
-      // Only change the border if the text field is not the one currently being edited
-      if !textField.isFirstResponder {
+    if isError {
+      isError = false
+      methodChannel.invokeMethod("clearErrorState", arguments: nil)
+
+      // Restore the default border color for all non-focused fields
+      for textField in pinTextFields {
         textField.layer.borderColor = textField.defaultBorderColor.cgColor
         textField.textColor = textField.fontColor
+      }
+    }
+  }
+
+  private func didChangePlatformBrightness(_ args: [String: Any]) {
+    let backgroundColor = self.getColor(args["backgroundColor"], defaultColor: .white)
+    let cursorColor = self.getColor(args["cursorColor"], defaultColor: .lightGray)
+    let defaultBorderColor = self.getColor(args["defaultBorderColor"], defaultColor: .lightGray)
+    let focusedBorderColor = self.getColor(args["focusedBorderColor"], defaultColor: .lightGray)
+    let fontColor = self.getColor(args["fontColor"], defaultColor: .black)
+    let invalidColor = self.getColor(args["invalidColor"], defaultColor: .red)
+
+    self.args["backgroundColor"] = backgroundColor
+    self.args["cursorColor"] = cursorColor
+    self.args["defaultBorderColor"] = defaultBorderColor
+    self.args["focusedBorderColor"] = focusedBorderColor
+    self.args["fontColor"] = fontColor
+    self.args["invalidColor"] = invalidColor
+
+    for textField in pinTextFields {
+      textField.backgroundColor = backgroundColor
+      textField.cursorView.backgroundColor = cursorColor
+      textField.defaultBorderColor = defaultBorderColor
+      textField.focusedBorderColor = focusedBorderColor
+      textField.fontColor = fontColor
+      textField.invalidColor = invalidColor
+
+      if self.isError == false {
+        textField.layer.borderColor = defaultBorderColor.cgColor
+        textField.textColor = fontColor
       }
     }
   }
@@ -329,15 +385,13 @@ class PinInputView: NSObject, FlutterPlatformView, CustomTextFieldDelegate {
       // Move focus to the next text field
       if textField.tag < pinLength - 1 {
         pinTextFields[textField.tag + 1].becomeFirstResponder()
-      } else {
-        // Last text field, dismiss keyboard
+      }
+      // Last text field, dismiss keyboard
+      else {
         textField.resignFirstResponder()
       }
-    } else if currentText.isEmpty {
-      // Handle backspace: move focus to previous text field
-      if textField.tag > 0 {
-        pinTextFields[textField.tag - 1].becomeFirstResponder()
-      }
+
+      onTabbed = false
     }
 
     // Reconstruct the entered PIN
@@ -359,24 +413,43 @@ class PinInputView: NSObject, FlutterPlatformView, CustomTextFieldDelegate {
     return defaultColor
   }
 
-  func textFieldDidPressBackspace(_ textField: CustomTextField) {
-    // print("Backspace pressed in the custom text field! : \(textField.text)")
-
+  func textFieldDidPressBackspace(_ textField: CustomTextField, _ oldValue: String) {
     if textField.text == nil || textField.text!.isEmpty {
       if textField.tag > 0 {
         pinTextFields[textField.tag - 1].becomeFirstResponder()
       }
-      else {
+      else if oldValue.isEmpty {
         textField.resignFirstResponder()
       }
     }
   }
 
+  func unfocus(_ textField: CustomTextField) {
+    if isError {
+      textField.layer.borderColor = textField.invalidColor.cgColor
+      textField.textColor = textField.invalidColor
+    }
+    else {
+      textField.layer.borderColor = textField.defaultBorderColor.cgColor
+      textField.textColor = textField.fontColor
+    }
+  }
+
   func updatePinLength(to newLength: Int) {
     // Prevent unnecessary redraws if the length is the same
-    guard newLength != self.pinLength && newLength > 0 else { return }
+    guard newLength != self.pinLength && newLength > 0 else {
+      self.clearErrorState()
 
-    print("Dynamically changing pin length to: \(newLength)")
+      for textField in pinTextFields {
+        textField.text = "";
+      }
+
+      pinTextFields.first?.becomeFirstResponder()
+      self.enteredPin = ""
+
+      return
+    }
+
     self.pinLength = newLength
 
     // 2. Remove the existing UI elements
@@ -399,9 +472,6 @@ class PinInputView: NSObject, FlutterPlatformView, CustomTextFieldDelegate {
     shouldChangeCharactersIn range: NSRange,
     replacementString string: String
   ) -> Bool {
-    print("replacementString: \(string)")
-    print("textField.tag: \(textField.tag)")
-
     // - This condition part is based on this method that provide two time empty replacementString with the same tag
     if textField.tag > 0 && string.isEmpty && (textField.text == nil || textField.text!.isEmpty) {
       if tag == nil {
@@ -447,7 +517,6 @@ class PinInputView: NSObject, FlutterPlatformView, CustomTextFieldDelegate {
   }
 
   func clearTag() {
-    print("clearTag: \(tag)")
     tag = nil
   }
 
