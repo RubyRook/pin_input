@@ -38,6 +38,7 @@ sealed class PinInputController {
   FutureOr<void> unfocus(BuildContext context) async =>
       FocusScope.of(context).unfocus();
 
+  // ignore: unused_element
   void _dispose() => throw UnimplementedError('_dispose has not been implemented.');
 
   factory PinInputController.init(int length){
@@ -175,6 +176,7 @@ final class PinInputAndroid extends PinInputController {
     _length = newLength;
     _pins = [];
     _init();
+    Future.delayed(const Duration(milliseconds: 50), requestFocus);
   }
 
   @override
