@@ -263,125 +263,131 @@ class _PinInputFieldAndroidState extends State<_PinInputFieldAndroid> with Singl
     final data = widget.data;
     final pinPut = widget.controller;
 
-    final inputDecoration = InputDecoration(
-      constraints: BoxConstraints.tight(Size(data.size, data.size)),
-      contentPadding: EdgeInsets.zero,
-      counterText: '',
-      filled: true,
-      fillColor: data.backgroundColor ?? Colors.white,
-      enabledBorder: _defaultBorder.copyWith(
-        borderRadius: BorderRadius.circular(data.cornerRadius),
-        borderSide: _defaultBorder.borderSide
-            .copyWith(color: data.defaultBorderColor),
-      ),
-      errorBorder: _defaultBorder.copyWith(
-        borderRadius: BorderRadius.circular(data.cornerRadius),
-        borderSide: _defaultBorder.borderSide
-            .copyWith(color: data.defaultBorderColor ?? Colors.redAccent),
-      ),
-      focusedBorder: _defaultBorder.copyWith(
-        borderRadius: BorderRadius.circular(data.cornerRadius),
-        borderSide: _defaultBorder.borderSide.copyWith(
-          color: data.focusedBorderColor ?? Colors.deepPurple,
-          width: data.focusedBorderWidth,
-        ),
-      ),
-    );
-
-    return Column(
-      children: [
-        SizedBox(
-          height: data.size,
-          width: double.maxFinite,
-          child: TextSelectionTheme(
-            data: TextSelectionThemeData(selectionColor: Colors.transparent),
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              spacing: data.spacing,
-              children: (){
-                final children = <Widget>[];
-
-                for (int i = 0; i < pinPut._pins.length; i++) {
-                  final pin = pinPut._pins[i];
-
-                  final textFormField = TextFormField(
-                    cursorColor: Colors.transparent,
-                    cursorHeight: 0,
-                    key: Key('field_$i'),
-                    controller: pin.controller,
-                    focusNode: pin.focusNode,
-
-                    decoration: inputDecoration,
-                    enableInteractiveSelection: false,
-                    inputFormatters: [PinIntFormatter(pinPut._pins, i, pinPut.onEditingComplete)],
-                    maxLength: 2,
-                    style: TextStyle(color: Colors.transparent),
-                    textAlign: TextAlign.center,
-
-                    keyboardType: TextInputType.number,
-                    textInputAction: TextInputAction.done,
-
-                    onTap: () => pin.modifyOnHold(pin.controller.text.length > 1),
-                    onChanged: (value) => pinPut.message.value = null,
-                  );
-
-                  final child = ValueListenableBuilder(
-                    valueListenable: pin.controller,
-                    builder: (_, value, _) => Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        textFormField,
-                        IgnorePointer(
-                          ignoring: true,
-                          child: AnimatedScale(
-                            curve: Curves.easeInOut,
-                            duration: const Duration(milliseconds: 150),
-                            scale: value.text.length > 1 ? 1:0,
-                            child: Text(
-                              value.text.replaceAll(_placeHolder, ''),
-                              style: TextStyle(
-                                fontSize: data.fontSize,
-                              ),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 10,
-                          child: ValueListenableBuilder(
-                            valueListenable: pin._hasFocus,
-                            builder: (_, value, _) {
-                              if (value) {
-                                return FadeTransition(
-                                  opacity: animation,
-                                  child: Container(
-                                    color: data.cursorColor ?? Colors.blueAccent,
-                                    height: 1,
-                                    width: data.fontSize,
-                                  ),
-                                );
-                              }
-
-                              return const SizedBox();
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-
-                  children.add(child);
-                }
-
-                return children;
-              }(),
+    return ValueListenableBuilder(
+      valueListenable: pinPut.message,
+      builder: (context, value, _) {
+        final isError = value != null;
+        final inputDecoration = InputDecoration(
+          constraints: BoxConstraints.tight(Size(data.size, data.size)),
+          contentPadding: EdgeInsets.zero,
+          counterText: '',
+          filled: true,
+          fillColor: data.backgroundColor ?? Colors.white,
+          enabledBorder: _defaultBorder.copyWith(
+            borderRadius: BorderRadius.circular(data.cornerRadius),
+            borderSide: _defaultBorder.borderSide.copyWith(
+              color: isError
+                  ? data.invalidColor ?? Colors.redAccent
+                  : data.defaultBorderColor,
             ),
           ),
-        ),
-        if (widget.errorBuilder case final errorBuilder?) ValueListenableBuilder(
-          valueListenable: pinPut.message,
-          builder: (context, value, _) => errorBuilder(context, value),
-        ),
-      ],
+          errorBorder: _defaultBorder.copyWith(
+            borderRadius: BorderRadius.circular(data.cornerRadius),
+            borderSide: _defaultBorder.borderSide
+                .copyWith(color: data.invalidColor ?? Colors.redAccent),
+          ),
+          focusedBorder: _defaultBorder.copyWith(
+            borderRadius: BorderRadius.circular(data.cornerRadius),
+            borderSide: _defaultBorder.borderSide.copyWith(
+              color: data.focusedBorderColor ?? Colors.deepPurple,
+              width: data.focusedBorderWidth,
+            ),
+          ),
+        );
+
+        return Column(
+          children: [
+            SizedBox(
+              height: data.size,
+              width: double.maxFinite,
+              child: TextSelectionTheme(
+                data: TextSelectionThemeData(selectionColor: Colors.transparent),
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: data.spacing,
+                  children: (){
+                    final children = <Widget>[];
+
+                    for (int i = 0; i < pinPut._pins.length; i++) {
+                      final pin = pinPut._pins[i];
+
+                      final textFormField = TextFormField(
+                        cursorColor: Colors.transparent,
+                        cursorHeight: 0,
+                        key: Key('field_$i'),
+                        controller: pin.controller,
+                        focusNode: pin.focusNode,
+
+                        decoration: inputDecoration,
+                        enableInteractiveSelection: false,
+                        inputFormatters: [PinIntFormatter(pinPut._pins, i, pinPut.onEditingComplete)],
+                        maxLength: 2,
+                        style: TextStyle(color: Colors.transparent),
+                        textAlign: TextAlign.center,
+
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
+
+                        onTap: () => pin.modifyOnHold(pin.controller.text.length > 1),
+                        onChanged: (value) => pinPut.message.value = null,
+                      );
+
+                      final child = ValueListenableBuilder(
+                        valueListenable: pin.controller,
+                        builder: (_, value, _) => Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            textFormField,
+                            IgnorePointer(
+                              ignoring: true,
+                              child: AnimatedScale(
+                                curve: Curves.easeInOut,
+                                duration: const Duration(milliseconds: 150),
+                                scale: value.text.length > 1 ? 1:0,
+                                child: Text(
+                                  value.text.replaceAll(_placeHolder, ''),
+                                  style: TextStyle(
+                                    fontSize: data.fontSize,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 10,
+                              child: ValueListenableBuilder(
+                                valueListenable: pin._hasFocus,
+                                builder: (_, value, _) {
+                                  if (value) {
+                                    return FadeTransition(
+                                      opacity: animation,
+                                      child: Container(
+                                        color: data.cursorColor ?? Colors.blueAccent,
+                                        height: 1,
+                                        width: data.fontSize,
+                                      ),
+                                    );
+                                  }
+
+                                  return const SizedBox();
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      children.add(child);
+                    }
+
+                    return children;
+                  }(),
+                ),
+              ),
+            ),
+            if (widget.errorBuilder case final errorBuilder?) errorBuilder(context, value),
+          ],
+        );
+      },
     );
   }
 }
