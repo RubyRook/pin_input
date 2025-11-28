@@ -330,7 +330,6 @@ class PinInputView: NSObject, FlutterPlatformView, CustomTextFieldDelegate {
     // Update border color for all text fields
     for textField in pinTextFields {
       textField.layer.borderColor = textField.invalidColor.cgColor
-      textField.textColor = textField.invalidColor
     }
   }
 
@@ -342,7 +341,6 @@ class PinInputView: NSObject, FlutterPlatformView, CustomTextFieldDelegate {
       // Restore the default border color for all non-focused fields
       for textField in pinTextFields {
         textField.layer.borderColor = textField.defaultBorderColor.cgColor
-        textField.textColor = textField.fontColor
       }
     }
   }
@@ -368,11 +366,11 @@ class PinInputView: NSObject, FlutterPlatformView, CustomTextFieldDelegate {
       textField.defaultBorderColor = defaultBorderColor
       textField.focusedBorderColor = focusedBorderColor
       textField.fontColor = fontColor
+      textField.textColor = fontColor
       textField.invalidColor = invalidColor
 
       if self.isError == false {
         textField.layer.borderColor = defaultBorderColor.cgColor
-        textField.textColor = fontColor
       }
     }
   }
@@ -427,19 +425,17 @@ class PinInputView: NSObject, FlutterPlatformView, CustomTextFieldDelegate {
   func unfocus(_ textField: CustomTextField) {
     if isError {
       textField.layer.borderColor = textField.invalidColor.cgColor
-      textField.textColor = textField.invalidColor
     }
     else {
       textField.layer.borderColor = textField.defaultBorderColor.cgColor
-      textField.textColor = textField.fontColor
     }
   }
 
   func updatePinLength(to newLength: Int) {
+    self.clearErrorState()
+
     // Prevent unnecessary redraws if the length is the same
     guard newLength != self.pinLength && newLength > 0 else {
-      self.clearErrorState()
-
       for textField in pinTextFields {
         textField.text = "";
       }
